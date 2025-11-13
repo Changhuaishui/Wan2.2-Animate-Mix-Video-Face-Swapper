@@ -11,7 +11,15 @@
       "Bash(timeout 120 tail:*)",
       "Bash(cat:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Wan2.2-Animate-Mix Video Face Swapper\n\nComplete Python application for video face-swapping using Alibaba Cloud''s \nTongyi Wanxiang Wan2.2-Animate-Mix API.\n\nFeatures:\n- Intelligent input validation (image and video)\n- Flexible file upload (DashScope temporary storage)\n- Two processing modes (wan-std and wan-pro)\n- Comprehensive error handling with retry logic\n- Cost estimation and progress tracking\n- CLI interface and Python API\n\nProject structure:\n- wan22_video_processor/: Core package\n  - config/: Configuration management\n  - validators/: Input validation\n  - uploaders/: File upload\n  - processors/: API integration\n  - utils/: Utility modules\n- main.py: CLI entry point\n- test_api_connection.py: API connectivity test\n- Complete documentation (README, QUICKSTART)\n\n🤖 Generated with Claude Code\nEOF\n)\")",
+      "Bash(git config:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []

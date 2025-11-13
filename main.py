@@ -1,293 +1,221 @@
 """
-Wan2.2-Animate-Mix Video Face Swapper - CLI Interface
-Main entry point for the application
+阿里云通义万相 - 视频换脸工具
+简洁交互式版本
 """
+import os
 import sys
-import argparse
+import time
 from pathlib import Path
+from datetime import datetime
 
-# Add project root to path
+# 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from wan22_video_processor.orchestrator import VideoFaceSwapper, ProcessingError
-from wan22_video_processor.config.settings import Config
-from wan22_video_processor.utils.logger import setup_logger
-
-logger = setup_logger("main")
+try:
+    from wan22_video_processor.orchestrator import VideoFaceSwapper, ProcessingError
+    from wan22_video_processor.config.settings import Config
+except ImportError as e:
+    print(f"错误: 无法导入项目模块: {e}")
+    print("请确保wan22_video_processor文件夹存在")
+    sys.exit(1)
 
 
 def print_banner():
-    """Print application banner"""
-    banner = """
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                                                              ║
-    ║        Wan2.2-Animate-Mix Video Face Swapper v1.0           ║
-    ║                                                              ║
-    ║        Powered by Alibaba Cloud Tongyi Wanxiang             ║
-    ║                                                              ║
-    ╚══════════════════════════════════════════════════════════════╝
-    """
-    print(banner)
+    """打印程序标题"""
+    print("\n" + "=" * 70)
+    print("           阿里云通义万相 - 视频换脸工具")
+    print("=" * 70)
 
 
-def progress_callback(message: str):
-    """Progress callback for CLI"""
-    print(f"  {message}")
+def print_requirements():
+    """打印输入要求"""
+    print("\n📋 输入文件要求:")
+    print("  图片: JPG/PNG/BMP/WEBP | 200-4096px | <5MB | 宽高比1:3到3:1")
+    print("  视频: MP4/AVI/MOV | 200-2048px | 2-30秒 | <200MB | 宽高比1:3到3:1")
+    print()
 
 
-def cmd_process(args):
-    """Process single video command"""
-    try:
-        # Initialize swapper
-        swapper = VideoFaceSwapper(mode=args.mode, api_key=args.api_key)
-
-        print(f"\nStarting video face-swapping...")
-        print(f"Image: {args.image}")
-        print(f"Video: {args.video}")
-        print(f"Mode: {args.mode}")
-        print(f"Output: {args.output or Config.OUTPUT_DIR}\n")
-
-        # Process
-        result = swapper.process(
-            image_path=args.image,
-            video_path=args.video,
-            output_dir=args.output,
-            output_filename=args.filename,
-            skip_validation=args.skip_validation,
-            progress_callback=progress_callback if args.verbose else None
-        )
-
-        # Print results
-        print("\n" + "=" * 60)
-        print("✓ Processing Complete!")
-        print("=" * 60)
-        print(f"Output file: {result['output_path']}")
-        print(f"Processing time: {result['processing_time']:.1f}s")
-
-        if result.get('cost'):
-            print(f"Cost: {result['cost']:.2f} RMB")
-
-        if result.get('task_id'):
-            print(f"Task ID: {result['task_id']}")
-
-        return 0
-
-    except ProcessingError as e:
-        logger.error(f"Processing failed: {e}")
-        print(f"\n✗ Error: {e}")
-        return 1
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        print(f"\n✗ Unexpected error: {e}")
-        return 1
+def log(message, level="INFO"):
+    """格式化日志输出"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    prefix = {
+        "INFO": "ℹ️",
+        "SUCCESS": "✅",
+        "ERROR": "❌",
+        "WARNING": "⚠️",
+        "WAITING": "⏳"
+    }.get(level, "  ")
+    print(f"[{timestamp}] {prefix} {message}")
 
 
-def cmd_validate(args):
-    """Validate files command"""
-    from wan22_video_processor.validators.image_validator import ImageValidator
-    from wan22_video_processor.validators.video_validator import VideoValidator
+def get_file_path(prompt, file_type="file"):
+    """获取并验证文件路径"""
+    while True:
+        path = input(f"{prompt}: ").strip().strip('"')
 
-    print("\nValidating files...\n")
+        if not path:
+            log("路径不能为空", "ERROR")
+            continue
 
-    # Validate image
-    if args.image:
-        print(f"Validating image: {args.image}")
-        validator = ImageValidator()
-        is_valid, error = validator.validate(args.image)
+        if not os.path.exists(path):
+            log(f"文件不存在: {path}", "ERROR")
+            retry = input("  重新输入? (y/n): ").lower()
+            if retry != 'y':
+                return None
+            continue
 
-        if is_valid:
-            print("  ✓ Image is valid")
-            if args.verbose:
-                info = validator.get_image_info(args.image)
-                print(f"    - Size: {info['width']}x{info['height']}")
-                print(f"    - Aspect ratio: {info['aspect_ratio']:.2f}")
-                print(f"    - File size: {info['file_size_formatted']}")
-        else:
-            print(f"  ✗ Image validation failed: {error}")
-            return 1
-
-    # Validate video
-    if args.video:
-        print(f"\nValidating video: {args.video}")
-        validator = VideoValidator()
-        is_valid, error = validator.validate(args.video)
-
-        if is_valid:
-            print("  ✓ Video is valid")
-            if args.verbose:
-                info = validator.get_video_info(args.video)
-                print(f"    - Resolution: {info['width']}x{info['height']}")
-                print(f"    - Duration: {info['duration']:.2f}s")
-                print(f"    - FPS: {info['fps']:.2f}")
-                print(f"    - File size: {info['file_size_formatted']}")
-
-                # Estimate cost
-                cost_std = validator.estimate_processing_cost(args.video, "wan-std")
-                cost_pro = validator.estimate_processing_cost(args.video, "wan-pro")
-                if cost_std and cost_pro:
-                    print(f"    - Estimated cost (standard): {cost_std:.2f} RMB")
-                    print(f"    - Estimated cost (professional): {cost_pro:.2f} RMB")
-        else:
-            print(f"  ✗ Video validation failed: {error}")
-            return 1
-
-    print("\n✓ All validations passed!")
-    return 0
+        return path
 
 
-def cmd_config(args):
-    """Show configuration command"""
-    try:
-        Config.validate_config()
-        print("\nCurrent Configuration:")
-        print("=" * 60)
-
-        Config.print_config()
-
-        return 0
-    except ValueError as e:
-        print(f"\n✗ Configuration error: {e}")
-        return 1
-
-
-def cmd_info(args):
-    """Show info command"""
-    try:
-        swapper = VideoFaceSwapper(mode=args.mode)
-        info = swapper.get_info()
-
-        print("\nVideoFaceSwapper Information:")
-        print("=" * 60)
-        for key, value in info.items():
-            print(f"{key.replace('_', ' ').title()}: {value}")
-
-        return 0
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
-        return 1
+def progress_callback(message):
+    """进度回调函数"""
+    log(message, "WAITING")
 
 
 def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(
-        description="Wan2.2-Animate-Mix Video Face Swapper",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Process a single video
-  python main.py process -i person.jpg -v video.mp4
-
-  # Use professional mode
-  python main.py process -i person.jpg -v video.mp4 --mode wan-pro
-
-  # Validate files before processing
-  python main.py validate -i person.jpg -v video.mp4
-
-  # Show configuration
-  python main.py config
-
-For more information, visit: https://help.aliyun.com/zh/model-studio/wan-animate-mix-api
-        """
-    )
-
-    # Global arguments
-    parser.add_argument(
-        "--api-key",
-        type=str,
-        help="DashScope API Key (overrides DASHSCOPE_API_KEY env var)"
-    )
-
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose output"
-    )
-
-    # Subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-    # Process command
-    process_parser = subparsers.add_parser("process", help="Process video face-swapping")
-    process_parser.add_argument(
-        "-i", "--image",
-        required=True,
-        type=str,
-        help="Path to person image"
-    )
-    process_parser.add_argument(
-        "-v", "--video",
-        required=True,
-        type=str,
-        help="Path to reference video"
-    )
-    process_parser.add_argument(
-        "-o", "--output",
-        type=str,
-        help="Output directory (default: ./output)"
-    )
-    process_parser.add_argument(
-        "-f", "--filename",
-        type=str,
-        help="Output filename (default: auto-generated)"
-    )
-    process_parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["wan-std", "wan-pro"],
-        default="wan-std",
-        help="Processing mode (default: wan-std)"
-    )
-    process_parser.add_argument(
-        "--skip-validation",
-        action="store_true",
-        help="Skip input validation (not recommended)"
-    )
-
-    # Validate command
-    validate_parser = subparsers.add_parser("validate", help="Validate image and video files")
-    validate_parser.add_argument(
-        "-i", "--image",
-        type=str,
-        help="Path to image file"
-    )
-    validate_parser.add_argument(
-        "-v", "--video",
-        type=str,
-        help="Path to video file"
-    )
-
-    # Config command
-    config_parser = subparsers.add_parser("config", help="Show configuration")
-
-    # Info command
-    info_parser = subparsers.add_parser("info", help="Show application info")
-    info_parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["wan-std", "wan-pro"],
-        default="wan-std",
-        help="Mode to show info for"
-    )
-
-    # Parse arguments
-    args = parser.parse_args()
-
-    # Print banner
+    """主程序"""
     print_banner()
 
-    # Execute command
-    if args.command == "process":
-        return cmd_process(args)
-    elif args.command == "validate":
-        return cmd_validate(args)
-    elif args.command == "config":
-        return cmd_config(args)
-    elif args.command == "info":
-        return cmd_info(args)
-    else:
-        parser.print_help()
+    # 检查配置
+    log("检查API配置...")
+    try:
+        Config.validate_config()
+        log(f"API Key: {Config.API_KEY[:20]}...", "SUCCESS")
+        log(f"区域: 北京 (cn-beijing)", "INFO")
+    except ValueError as e:
+        log(f"配置错误: {e}", "ERROR")
+        log("请在.env文件中配置DASHSCOPE_API_KEY", "ERROR")
+        return 1
+
+    print_requirements()
+
+    # 获取输入文件
+    log("请输入文件路径（支持拖拽文件到此窗口）")
+    print()
+
+    image_path = get_file_path("  图片路径", "image")
+    if not image_path:
+        log("已取消", "WARNING")
         return 0
+
+    video_path = get_file_path("  视频路径", "video")
+    if not video_path:
+        log("已取消", "WARNING")
+        return 0
+
+    # 选择处理模式
+    print()
+    print("处理模式:")
+    print("  1. 标准模式 (wan-std) - 0.6元/秒 - 速度快")
+    print("  2. 专业模式 (wan-pro) - 0.9元/秒 - 质量高")
+    mode_choice = input("请选择 (1/2, 默认1): ").strip() or "1"
+    mode = "wan-std" if mode_choice == "1" else "wan-pro"
+
+    print()
+    log(f"图片: {os.path.basename(image_path)}", "INFO")
+    log(f"视频: {os.path.basename(video_path)}", "INFO")
+    log(f"模式: {mode}", "INFO")
+    log(f"输出: {Config.OUTPUT_DIR}", "INFO")
+
+    # 确认开始
+    print()
+    confirm = input("开始处理? (y/n): ").lower()
+    if confirm != 'y':
+        log("已取消", "WARNING")
+        return 0
+
+    print("\n" + "=" * 70)
+    log("开始处理视频换脸...", "INFO")
+    print("=" * 70)
+
+    start_time = time.time()
+
+    try:
+        # 初始化处理器
+        log(f"初始化处理器（模式: {mode}）...", "INFO")
+        swapper = VideoFaceSwapper(mode=mode)
+
+        # 处理视频
+        log("开始处理流程...", "INFO")
+        result = swapper.process(
+            image_path=image_path,
+            video_path=video_path,
+            output_dir=Config.OUTPUT_DIR,
+            skip_validation=True,  # 跳过复杂验证，用户自己选择合适的文件
+            progress_callback=progress_callback
+        )
+
+        # 成功
+        elapsed = time.time() - start_time
+        print("\n" + "=" * 70)
+        log("处理完成!", "SUCCESS")
+        print("=" * 70)
+        log(f"输出文件: {result['output_path']}", "INFO")
+        log(f"处理时长: {result['processing_time']:.1f}秒", "INFO")
+        log(f"总耗时: {elapsed:.1f}秒", "INFO")
+
+        if result.get('cost'):
+            log(f"费用: {result['cost']:.2f}元", "INFO")
+
+        if result.get('task_id'):
+            log(f"任务ID: {result['task_id']}", "INFO")
+
+        print("=" * 70)
+        return 0
+
+    except ProcessingError as e:
+        elapsed = time.time() - start_time
+        print("\n" + "=" * 70)
+        log("处理失败", "ERROR")
+        print("=" * 70)
+        log(f"错误: {str(e)}", "ERROR")
+        log(f"耗时: {elapsed:.1f}秒", "INFO")
+
+        # 常见错误的解决建议
+        error_str = str(e).lower()
+        if "duration" in error_str:
+            log("解决方法: 视频时长必须在2-30秒之间", "WARNING")
+            log("请使用视频编辑工具裁剪视频", "WARNING")
+        elif "size" in error_str or "resolution" in error_str:
+            log("解决方法: 检查图片/视频尺寸是否符合要求", "WARNING")
+        elif "api key" in error_str or "auth" in error_str:
+            log("解决方法: 检查.env文件中的API Key是否正确", "WARNING")
+        elif "network" in error_str or "timeout" in error_str:
+            log("解决方法: 检查网络连接，稍后重试", "WARNING")
+        elif "face" in error_str:
+            log("解决方法: 确保图片/视频中有清晰的人脸", "WARNING")
+
+        log("注意: 失败的任务不计费，可以重试", "INFO")
+        print("=" * 70)
+        return 1
+
+    except KeyboardInterrupt:
+        log("用户中断", "WARNING")
+        return 130
+
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print("\n" + "=" * 70)
+        log("发生未预期的错误", "ERROR")
+        print("=" * 70)
+        log(f"错误: {str(e)}", "ERROR")
+        log(f"耗时: {elapsed:.1f}秒", "INFO")
+        print("=" * 70)
+
+        import traceback
+        log("详细错误信息:", "ERROR")
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        exit_code = main()
+
+        # 等待用户确认后退出
+        print()
+        input("按回车键退出...")
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n\n程序已中断")
+        sys.exit(130)

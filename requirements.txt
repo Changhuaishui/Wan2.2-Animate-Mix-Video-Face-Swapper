@@ -1,20 +1,13 @@
-# Wan2.2-Animate-Mix Video Face Swapper Dependencies
+# 阿里云视频换脸工具 - 核心依赖
 
-# Core dependencies
+# HTTP请求
 requests>=2.31.0
+
+# 环境变量管理
 python-dotenv>=1.0.0
 
-# Image processing
+# 图片处理（基础）
 Pillow>=10.0.0
-opencv-python>=4.8.0
 
-# Cloud storage (optional, for OSS support)
-oss2>=2.18.0
-
-# Utilities
+# URL处理
 urllib3>=2.0.0
-
-# Development dependencies (optional)
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.0.0

@@ -64,5 +64,6 @@ tmp/
 Thumbs.db
 desktop.ini
 
-# Test data (optional, uncomment if needed)
-# test_data/
+# Test data and user files
+test_data/
+测试文件/
